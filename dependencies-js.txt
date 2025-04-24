@@ -1,0 +1,6 @@
+baileys
+body-parser
+telegram
+express
+sqlite3
+qrcode-terminal

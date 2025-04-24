@@ -94,4 +94,16 @@ router.post('/sessions/:sessionId/send', async (req, res) => {
   }
 });
 
+// Endpoint para eliminar una sesión específica
+router.post('/sessions/:sessionId/delete', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const result = await TelegramManager.deleteSession(sessionId);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message})}
+});
+
 export default router;

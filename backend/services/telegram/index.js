@@ -72,17 +72,29 @@ class TelegramService {
       this.isInitialized = true;
       this.sessionString = this.client.session.save();
       await Database.saveSession(this.sessionId, this.sessionString, this.apiId, this.apiHash, this.phoneNumber);
-      console.log(`[Session: ${this.sessionId}] Sesión de Telegram verificada`);
+      console.log(`[Telegram: ${this.sessionId}] Sesión de Telegram verificada`);
       this.setupEventHandlers();
       return { success: true };
     } catch (error) {
-      console.error(`[Session: ${this.sessionId || this.phoneNumber}] Falló la verificación:`, error);
+      console.error(`[Telegram: ${this.sessionId || this.phoneNumber}] Falló la verificación:`, error);
       throw error;
     }
   }
 
   getSessionString() {
     return this.sessionString;
+  }
+
+  async logout() {
+    if (!this.client || !this.isInitialized) {throw new Error("Cliente no inicializado o sesión no verificada")}
+    try {
+      await this.client.invoke(new Api.auth.LogOut());
+      this.isInitialized = false;
+      this.sessionString = "";
+      this.client.session.delete();
+      return { success: true };
+    } catch (error) {console.error(`[Telegram: ${this.sessionId}] Error al cerrar sesión:`, error);
+      throw error}
   }
 
   setupEventHandlers() {
@@ -174,7 +186,7 @@ class TelegramService {
           console.log(JSON.stringify(messageData));
         }
       } catch (handlerError) {
-        console.error(`[Session: ${this.sessionId}] Error en el manejador de eventos:`, handlerError);
+        console.error(`[Telegram: ${this.sessionId}] Error en el manejador de eventos:`, handlerError);
       }
     }, new NewMessage({}));
   }
@@ -189,7 +201,7 @@ class TelegramService {
       const allDialogs = await this.client.getDialogs({});
       userDialogs = allDialogs.filter(dialog => dialog.isUser);
     } catch (error) {
-      console.log(`[Session: ${this.sessionId}] Recuperados ${processedChatCount} chats`);
+      console.log(`[Telegram: ${this.sessionId}] Recuperados ${processedChatCount} chats`);
       return [];
     }
 
@@ -224,7 +236,7 @@ class TelegramService {
         });
       }
     }
-    console.log(`[Session: ${this.sessionId}] Recuperados ${processedChatCount} chats`);
+    console.log(`[Telegram: ${this.sessionId}] Recuperados ${processedChatCount} chats`);
     return results;
   }
 
@@ -245,7 +257,7 @@ class TelegramService {
       const result = await this.client.sendMessage(peer, { message: message });
       return { success: true, messageId: result.id, date: result.date };
     } catch (error) {
-      console.error(`[Session: ${this.sessionId}] Error al procesar envío a ${chatId}:`, error);
+      console.error(`[Telegram: ${this.sessionId}] Error al procesar envío a ${chatId}:`, error);
       return { success: false, error: error.message };
     }
   }
@@ -254,14 +266,3 @@ class TelegramService {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export { TelegramService };
-
-/*
-
-PARA DESCARGAR LOS ARCHIVOS
-
-if (messageData.image) {
-  const buffer = await this.client.downloadMedia(message.media);
-  // Guardar buffer en disco o procesar
-}
-
-*/

@@ -1,4 +1,0 @@
-body-parser
-telegram
-express
-sqlite3
