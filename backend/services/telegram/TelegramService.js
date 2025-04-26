@@ -1,7 +1,7 @@
 import { StringSession } from "telegram/sessions/index.js";
 import { NewMessage } from "telegram/events/index.js";
 import { Api, TelegramClient } from "telegram";
-import Database from '../../database/database.js';
+import Database from '../../database/Database.js';
 
 class TelegramService {
   constructor(sessionId, apiId, apiHash, phoneNumber) {

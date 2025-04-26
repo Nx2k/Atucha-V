@@ -1,4 +1,4 @@
-import TelegramManager from '../../../controllers/telegram/telegram-manager.js'
+import TelegramManager from '../../../controllers/telegram/TelegramManager.js'
 import express from 'express';
 
 const router = express.Router();

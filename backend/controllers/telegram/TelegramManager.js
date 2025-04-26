@@ -1,5 +1,5 @@
-import { TelegramService } from '../../services/telegram/index.js';
-import Database from '../../database/database.js';
+import { TelegramService } from '../../services/telegram/TelegramService.js';
+import Database from '../../database/Database.js';
 
 class TelegramManager {
   constructor() {

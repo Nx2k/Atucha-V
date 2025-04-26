@@ -3,12 +3,20 @@ import { existsSync, mkdirSync, rmSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import qrcode from 'qrcode-terminal';
-import Database from '../../database/database.js';
-import { platform } from 'os';
+import Database from '../../database/Database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const sessionPath = path.join(__dirname, '../../database/WhatsappSessions');
+
+const logger = {
+  child: () => logger,
+  info: () => {},
+  warn: () => {},
+  debug: () => {},
+  error: () => {},
+  trace: () => {},
+};
 
 class WhatsAppService {
   constructor(sessionId, authMethod = 'qr', phoneNumber = '') {
@@ -27,15 +35,6 @@ class WhatsAppService {
     if (this.isInitialized) return { success: true };
     if (!existsSync(sessionPath)) mkdirSync(sessionPath, { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState(this.sessionDir);
-  
-    const logger = {
-      child: () => logger,
-      info: () => {},
-      warn: () => {},
-      debug: () => {},
-      error: () => {},
-      trace: () => {},
-    };
 
     this.sock = makeWASocket({
       auth: state,
@@ -46,7 +45,7 @@ class WhatsAppService {
   
     this.sock.ev.on('creds.update', saveCreds);
     this.setupEventHandlers();
-    const isExistingSession = existsSync(this.sessionDir)
+    const isExistingSession = existsSync(this.sessionDir) && state.creds.registered;
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
         reject(new Error(`Timeout inicializando sesión ${this.sessionId}`));
@@ -64,7 +63,7 @@ class WhatsAppService {
         }
         lastConnectionTime = now;
   
-        if (connection === 'open' || isExistingSession) {
+        if (connection === 'open') {
           this.isInitialized = true;
           this.isReconnecting = false;
           console.log(`Conectado a sesión ${this.sessionId}${isNewLogin ? ' (nuevo login)' : ''}`);
@@ -112,6 +111,23 @@ class WhatsAppService {
     });
   
     return Promise.race([connectionPromise, timeoutPromise]);
+  }
+
+  getSessionPath() {
+    return this.sessionDir;
+  }
+
+  async logout() {
+    if (!this.sock || !this.isInitialized) throw new Error(`Sesión ${this.sessionId} no inicializada`);
+    this.sock.end();
+    if (existsSync(this.sessionDir)) {
+      rmSync(this.sessionDir, { recursive: true, force: true });
+      console.log(`Archivos de sesión ${this.sessionId} eliminados`);
+      Database.deleteSession(this.sessionId, 'whatsapp')
+    }
+    this.isInitialized = false;
+    this.isReconnecting = false;
+    return { success: true };
   }
 
   setupEventHandlers() {
@@ -235,23 +251,6 @@ class WhatsAppService {
         console.error(`[WhatsApp: ${this.sessionId}] Error en el manejador de eventos:`, handlerError);
       }
     });
-  }
-
-  getSessionPath() {
-    return this.sessionDir;
-  }
-
-  async logout() {
-    if (!this.sock || !this.isInitialized) throw new Error(`Sesión ${this.sessionId} no inicializada`);
-    this.sock.end();
-    if (existsSync(this.sessionDir)) {
-      rmSync(this.sessionDir, { recursive: true, force: true });
-      console.log(`Archivos de sesión ${this.sessionId} eliminados`);
-      Database.deleteSession(this.sessionId, 'whatsapp')
-    }
-    this.isInitialized = false;
-    this.isReconnecting = false;
-    return { success: true };
   }
 
   async sendMessage(chatId, message) {

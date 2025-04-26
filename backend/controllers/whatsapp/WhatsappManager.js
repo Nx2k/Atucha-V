@@ -1,5 +1,5 @@
-import { WhatsAppService } from '../../services/whatsapp/index.js';
-import Database from '../../database/database.js';
+import { WhatsAppService } from '../../services/whatsapp/WhatsappService.js';
+import Database from '../../database/Database.js';
 
 class WhatsAppManager {
   constructor() {
