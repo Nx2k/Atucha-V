@@ -2,6 +2,7 @@ import { StringSession } from "telegram/sessions/index.js";
 import { NewMessage } from "telegram/events/index.js";
 import { Api, TelegramClient } from "telegram";
 import Database from '../../database/Database.js';
+import GeminiManager from '../../controllers/gemini/GeminiManager.js';
 
 class TelegramService {
   constructor(sessionId, apiId, apiHash, phoneNumber) {
@@ -184,6 +185,22 @@ class TelegramService {
             document : document
           };
           console.log(JSON.stringify(messageData));
+          
+          // Obtener la cuenta asociada a esta sesión
+          try {
+            const sessionData = await Database.getSession(this.sessionId, 'telegram');
+            if (sessionData && sessionData.accountId) {
+              // Procesar el mensaje con Gemini
+              const geminiResponse = await GeminiManager.processMessage(sessionData.accountId, messageData);
+              
+              // Si hay una respuesta, enviarla de vuelta al chat
+              if (geminiResponse && geminiResponse.status === 'success' && geminiResponse.results.text) {
+                await this.sendMessage(chatId, geminiResponse.results.text.content);
+              }
+            }
+          } catch (processingError) {
+            console.error(`Error al procesar mensaje con Gemini: ${processingError.message}`);
+          }
         }
       } catch (handlerError) {
         console.error(`[Telegram: ${this.sessionId}] Error en el manejador de eventos:`, handlerError);

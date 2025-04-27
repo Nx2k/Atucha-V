@@ -12,8 +12,8 @@ router.get('/sessions', (req, res) => {
 // POST: Crear una nueva sesión
 router.post('/sessions', async (req, res) => {
     try {
-      const { sessionId, authMethod, phoneNumber } = req.body;
-      if (!sessionId || !authMethod || !['qr', 'pairing'].includes(authMethod)) {
+      const { sessionId, authMethod, phoneNumber, accountId } = req.body;
+      if (!sessionId || !authMethod || !['qr', 'pairing'].includes(authMethod) || !accountId) {
         return res.status(400).json({
           success: false,
           error: 'Faltan parámetros o authMethod inválido (qr/pairing)',
@@ -25,7 +25,7 @@ router.post('/sessions', async (req, res) => {
           error: 'phoneNumber requerido para pairing',
         });
       }
-      const result = await WhatsAppManager.createSession(sessionId, authMethod, phoneNumber);
+      const result = await WhatsAppManager.createSession(sessionId, authMethod, phoneNumber, accountId);
       return res.status(202).json({
         success: true,
         message: `Sesión ${sessionId} iniciada`,

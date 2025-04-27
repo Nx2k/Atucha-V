@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import qrcode from 'qrcode-terminal';
 import Database from '../../database/Database.js';
+import GeminiManager from '../../controllers/gemini/GeminiManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -245,6 +246,22 @@ class WhatsAppService {
               document: document
             };
             console.log(JSON.stringify(messageData));
+            
+            // Obtener la cuenta asociada a esta sesión
+            try {
+              const sessionData = await Database.getSession(this.sessionId, 'whatsapp');
+              if (sessionData && sessionData.accountId) {
+                // Procesar el mensaje con Gemini
+                const geminiResponse = await GeminiManager.processMessage(sessionData.accountId, messageData);
+                
+                // Si hay una respuesta, enviarla de vuelta al chat
+                if (geminiResponse && geminiResponse.status === 'success' && geminiResponse.results.text) {
+                  await this.sendMessage(chatId, geminiResponse.results.text.content);
+                }
+              }
+            } catch (processingError) {
+              console.error(`Error al procesar mensaje con Gemini: ${processingError.message}`);
+            }
           }
         }
       } catch (handlerError) {

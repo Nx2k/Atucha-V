@@ -1,9 +1,13 @@
 {
+  "name": "atucha-v",
+  "version": "2.1.0",
+  "description": "Aplicación para centralización de mensajes + Chatbot",
   "type": "module",
   "dependencies": {
     "@google/genai": "^0.10.0",
     "baileys": "^6.7.16",
     "body-parser": "^2.2.0",
+    "crypto": "^1.0.1",
     "express": "^5.1.0",
     "qrcode-terminal": "^0.12.0",
     "sqlite3": "^5.1.7",

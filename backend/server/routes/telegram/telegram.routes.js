@@ -15,9 +15,9 @@ router.get('/sessions', (req, res) => {
 // Endpoint para crear una nueva sesión
 router.post('/sessions', async (req, res) => {
   try {
-    const { sessionId, apiId, apiHash, phoneNumber } = req.body;
+    const { sessionId, apiId, apiHash, phoneNumber, accountId } = req.body;
     
-    if (!sessionId || !apiId || !apiHash || !phoneNumber) {
+    if (!sessionId || !apiId || !apiHash || !phoneNumber || !accountId) {
       return res.status(400).json({
         success: false,
         error: "Faltan parámetros requeridos"
@@ -28,7 +28,8 @@ router.post('/sessions', async (req, res) => {
       sessionId,
       apiId,
       apiHash,
-      phoneNumber
+      phoneNumber,
+      accountId
     );
     
     return res.status(202).json({

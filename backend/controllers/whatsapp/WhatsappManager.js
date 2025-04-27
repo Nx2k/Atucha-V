@@ -7,7 +7,7 @@ class WhatsAppManager {
     this.loadSavedSessions();
   }
 
-  async createSession(sessionId, authMethod, phoneNumber = '') {
+  async createSession(sessionId, authMethod, phoneNumber = '', accountId) {
     if (this.sessions.has(sessionId)) {
       throw new Error(`Ya existe una sesión con el ID: ${sessionId}`);
     }
@@ -15,9 +15,15 @@ class WhatsAppManager {
       throw new Error('phoneNumber requerido para pairing');
     }
 
+    // Verificar que el accountId exista
+    const account = await Database.getAccount(accountId);
+    if (!account) {
+      throw new Error(`No existe una cuenta con el ID: ${accountId}`);
+    }
+
     const service = new WhatsAppService(sessionId, authMethod, phoneNumber);
     const result = await service.initialize();
-    await Database.saveSession(sessionId, service.getSessionPath(), '', '', phoneNumber, 'whatsapp', authMethod);
+    await Database.saveSession(sessionId, service.getSessionPath(), '', '', phoneNumber, 'whatsapp', authMethod, accountId);
     this.sessions.set(sessionId, service);
 
     console.log(`[WhatsApp: ${sessionId}] Iniciada con ${authMethod}`);

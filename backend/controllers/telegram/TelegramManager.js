@@ -7,14 +7,19 @@ class TelegramManager {
     this.loadSavedSessions();
   }
 
-  async createSession(sessionId, apiId, apiHash, phoneNumber) {
+  async createSession(sessionId, apiId, apiHash, phoneNumber, accountId) {
     if (this.sessions.has(sessionId)) {
       throw new Error(`Ya existe una sesión con el ID: ${sessionId}`);
     }
 
+    const account = await Database.getAccount(accountId);
+    if (!account) {
+      throw new Error(`No existe una cuenta con el ID: ${accountId}`);
+    }
+
     const service = new TelegramService(sessionId, apiId, apiHash, phoneNumber);
     const result = await service.initialize();
-    await Database.saveSession(sessionId, service.getSessionString(), apiId, apiHash, phoneNumber, 'telegram');
+    await Database.saveSession(sessionId, service.getSessionString(), apiId, apiHash, phoneNumber, 'telegram', '', accountId);
 
     this.sessions.set(sessionId, service);
     console.log(`[Telegram: ${sessionId}] Iniciada, pendiente de verificación`);

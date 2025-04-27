@@ -1,18 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = ""
-
 class GeminiService {
-  constructor() {
+  constructor(apiKey) {
+    if (!apiKey) {
+      throw new Error("Se requiere una API key de Gemini");
+    }
+    this.apiKey = apiKey;
     this.ai = new GoogleGenAI({ apiKey });
     
-    // Modelos disponibles en Gemini
-    this.models = {
-      text: "gemini-2.5-flash-preview-04-17", // Para procesamiento rápido de texto
-      multimodal: "gemini-2.5-flash-preview-04-17", // Para procesamiento de imágenes y texto
-      audio: "gemini-2.5-flash-preview-04-17", // Para procesamiento de audio
-      video: "gemini-2.5-flash-preview-04-17" // Para procesamiento de video
-    };
+    // Modelo disponible en Gemini
+    this.model = "gemini-2.5-flash-preview-04-17"
   }
 
   /**
@@ -124,7 +121,7 @@ class GeminiService {
   async processText(text) {
     try {
       const model = this.ai.models.generateContent({
-        model: this.models.text,
+        model: this.model,
         contents: [{
           role: "user",
           parts: [{ text }]
@@ -158,7 +155,7 @@ class GeminiService {
       // Aquí se procesaría la imagen, convirtiendo a base64 si fuera necesario
       // Por ahora simulamos el procesamiento
       const model = this.ai.models.generateContent({
-        model: this.models.multimodal,
+        model: this.model,
         contents: [
           {
             role: "user",
