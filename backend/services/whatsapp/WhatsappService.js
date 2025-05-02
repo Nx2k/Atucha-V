@@ -19,6 +19,8 @@ const logger = {
   trace: () => {},
 };
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 class WhatsAppService {
   constructor(sessionId, authMethod = 'qr', phoneNumber = '') {
     this.sessionId = sessionId;
@@ -273,18 +275,22 @@ class WhatsAppService {
   async sendMessage(chatId, message) {
     if (!this.isInitialized) throw new Error(`Sesión ${this.sessionId} no inicializada`);
     
-    // Formatear el número de teléfono para WhatsApp
     let formattedPhone = chatId.replace(/[^0-9]/g, '');
     if (!formattedPhone.includes('@')) {
       formattedPhone = formattedPhone + '@s.whatsapp.net';
     }
     
-    // Enviar mensaje utilizando la API actualizada de Baileys
-    const result = await this.sock.sendMessage(formattedPhone, { 
-      text: message 
-    });
-    
-    return { success: true, messageId: result.key.id };
+    try {
+      const randomDelay = Math.floor(Math.random() * 5001) + 5000;
+      await this.sock.sendPresenceUpdate('composing', formattedPhone);
+      await sleep(randomDelay);
+      await this.sock.sendPresenceUpdate('paused', formattedPhone);
+      const result = await this.sock.sendMessage(formattedPhone, { text: message });
+      return { success: true, messageId: result.key.id };
+    } catch (error) {
+      console.error(`[WhatsApp: ${this.sessionId}] Error al enviar mensaje a ${chatId}:`, error);
+      return { success: false, error: error.message };
+    }
   }
 }
 

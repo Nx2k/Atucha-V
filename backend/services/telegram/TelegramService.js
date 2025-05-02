@@ -4,6 +4,8 @@ import { Api, TelegramClient } from "telegram";
 import Database from '../../database/Database.js';
 import GeminiManager from '../../controllers/gemini/GeminiManager.js';
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 class TelegramService {
   constructor(sessionId, apiId, apiHash, phoneNumber) {
     this.sessionId = sessionId;
@@ -190,10 +192,7 @@ class TelegramService {
           try {
             const sessionData = await Database.getSession(this.sessionId, 'telegram');
             if (sessionData && sessionData.accountId) {
-              // Procesar el mensaje con Gemini
               const geminiResponse = await GeminiManager.processMessage(sessionData.accountId, messageData);
-              
-              // Si hay una respuesta, enviarla de vuelta al chat
               if (geminiResponse && geminiResponse.status === 'success' && geminiResponse.results.text) {
                 await this.sendMessage(chatId, geminiResponse.results.text.content);
               }
@@ -279,7 +278,5 @@ class TelegramService {
     }
   }
 }
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export { TelegramService };

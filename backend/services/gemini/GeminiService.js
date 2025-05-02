@@ -1,56 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
+import fs from 'fs';
 
 class GeminiService {
   constructor(apiKey) {
-    if (!apiKey) {
-      throw new Error("Se requiere una API key de Gemini");
-    }
+    if (!apiKey) { throw new Error("Se requiere una API key de Gemini") }
     this.apiKey = apiKey;
     this.ai = new GoogleGenAI({ apiKey });
-    
-    // Modelo disponible en Gemini
     this.model = "gemini-2.5-flash-preview-04-17"
   }
 
-  /**
-   * Procesa un mensaje en paralelo para cada tipo de contenido
-   * @param {Object} messageData - JSON con datos del mensaje
-   * @returns {Promise<Object>} - Objeto con resultados de procesamiento
-   */
   async processMessage(messageData) {
-    // Extrae los componentes del mensaje
-    const { sessionId, chatId, message, image, audio, video, sticker, document } = messageData;
-    
-    // Objeto para rastrear el procesamiento
+    const { message, image, audio, video, sticker, document } = messageData;
     const processingStatus = {
-      textProcessed: false,
       imageProcessed: false,
       audioProcessed: false,
       videoProcessed: false,
       stickerProcessed: false,
       documentProcessed: false,
+      message: message || null,
       results: {}
     };
-
-    // Procesa todos los componentes en paralelo
     const processingPromises = [];
-
-    // Agrega promesas de procesamiento solo para los componentes que existen
-    if (message) {
-      processingPromises.push(
-        this.processText(message, sessionId, chatId)
-          .then(result => {
-            processingStatus.textProcessed = true;
-            processingStatus.results.text = result;
-          })
-      );
-    } else {
-      processingStatus.textProcessed = true; // Si no hay texto, se marca como procesado
-    }
 
     if (image) {
       processingPromises.push(
-        this.processImage(image, message, sessionId, chatId)
+        this.processImage(image)
           .then(result => {
             processingStatus.imageProcessed = true;
             processingStatus.results.image = result;
@@ -62,7 +36,7 @@ class GeminiService {
 
     if (audio) {
       processingPromises.push(
-        this.processAudio(audio, message, sessionId, chatId)
+        this.processAudio(audio)
           .then(result => {
             processingStatus.audioProcessed = true;
             processingStatus.results.audio = result;
@@ -74,7 +48,7 @@ class GeminiService {
 
     if (video) {
       processingPromises.push(
-        this.processVideo(video, message, sessionId, chatId)
+        this.processVideo(video)
           .then(result => {
             processingStatus.videoProcessed = true;
             processingStatus.results.video = result;
@@ -86,7 +60,7 @@ class GeminiService {
 
     if (sticker) {
       processingPromises.push(
-        this.processSticker(sticker, sessionId, chatId)
+        this.processSticker(sticker)
           .then(result => {
             processingStatus.stickerProcessed = true;
             processingStatus.results.sticker = result;
@@ -98,7 +72,7 @@ class GeminiService {
 
     if (document) {
       processingPromises.push(
-        this.processDocument(document, message, sessionId, chatId)
+        this.processDocument(document)
           .then(result => {
             processingStatus.documentProcessed = true;
             processingStatus.results.document = result;
@@ -108,77 +82,33 @@ class GeminiService {
       processingStatus.documentProcessed = true;
     }
 
-    // Espera a que todas las promesas se resuelvan
     await Promise.all(processingPromises);
-
-    // Genera respuesta consolidada
     return this.generateFinalResponse(processingStatus);
   }
 
-  /**
-   * Procesa texto con Gemini
-   */
-  async processText(text) {
+  async processImage(imagePath) {
     try {
-      const model = this.ai.models.generateContent({
+      const base64ImageFile = fs.readFileSync(imagePath, {encoding: "base64"});
+      const contents = [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: base64ImageFile,
+          },
+        },
+        { text: "Examine the image thoroughly. Describe every detail, including all objects, colors, textures, actions, and backgrounds. Note the position, size, and shape of each element. Capture any text, lighting, or patterns. Provide a precise, comprehensive description to fully represent the image without assumptions or interpretations." },
+      ];
+
+      const response = await this.ai.models.generateContent({
         model: this.model,
-        contents: [{
-          role: "user",
-          parts: [{ text }]
-        }],
+        contents: contents,
         config: {
-          maxOutputTokens: 1024,
-          temperature: 0.7
-        }
-      });
+          maxOutputTokens: 2048,
+          temperature: 0.85
+        }});
 
-      const result = await model;
-      return {
-        processed: true,
-        content: result.text,
-        confidence: 0.9
-      };
-    } catch (error) {
-      console.error("Error al procesar texto:", error);
-      return {
-        processed: false,
-        error: error.message
-      };
-    }
-  }
+      return { content: response.text };
 
-  /**
-   * Procesa imagen con Gemini
-   */
-  async processImage(image, text) {
-    try {
-      // Aquí se procesaría la imagen, convirtiendo a base64 si fuera necesario
-      // Por ahora simulamos el procesamiento
-      const model = this.ai.models.generateContent({
-        model: this.model,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: text || "¿Qué puedes ver en esta imagen?" },
-              // En una implementación real, aquí iría:
-              // { inlineData: { mimeType: image.mimetype, data: imageBase64 } }
-            ]
-          }
-        ],
-        config: {
-          maxOutputTokens: 1024,
-          temperature: 0.7
-        }
-      });
-
-      const result = await model;
-      return {
-        processed: true,
-        content: result.text,
-        detectedObjects: ["objeto1", "objeto2"], // Ejemplo
-        confidence: 0.85
-      };
     } catch (error) {
       console.error("Error al procesar imagen:", error);
       return {
@@ -188,19 +118,29 @@ class GeminiService {
     }
   }
 
-  /**
-   * Procesa audio con Gemini
-   */
-  async processAudio(audio, text) {
+  async processAudio(audioPath) {
     try {
-      // Aquí se procesaría el audio
-      // Por ahora simulamos el procesamiento
-      return {
-        processed: true,
-        transcription: "Transcripción del audio simulada",
-        language: "es",
-        confidence: 0.75
-      };
+      const base64AudioFile = fs.readFileSync(audioPath, {encoding: "base64"});
+      const contents = [
+        { text: "Listen to the audio carefully. Transcribe every word exactly as spoken, including tone, pauses, and any background sounds. Describe the speaker's accent, speed, and emotional tone. Note any unclear parts and timestamp them. Provide a precise, detailed summary of the content without adding interpretations." },
+        {
+          inlineData: {
+            mimeType: "audio/mp3",
+            data: base64AudioFile,
+          },
+        },
+      ];
+
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: contents,
+        config: {
+          maxOutputTokens: 2048,
+          temperature: 0.85
+        }
+      });
+
+      return { content: response.text };
     } catch (error) {
       console.error("Error al procesar audio:", error);
       return {
@@ -210,19 +150,30 @@ class GeminiService {
     }
   }
 
-  /**
-   * Procesa video con Gemini
-   */
-  async processVideo(video, text) {
+  async processVideo(videoPath) {
     try {
-      // Aquí se procesaría el video
-      // Por ahora simulamos el procesamiento
-      return {
-        processed: true,
-        summary: "Descripción del video simulada",
-        keyFrames: [0, 10, 20],
-        confidence: 0.7
-      };
+      const base64VideoFile = fs.readFileSync(videoPath, {encoding: "base64"});
+      const contents = [
+        {
+          inlineData: {
+            mimeType: "video/mp4",
+            data: base64VideoFile,
+          },
+        },
+        { text: "Watch the video closely. Describe every detail, including all actions, objects, colors, textures, and backgrounds. Note the sequence, timing, and duration of events. Capture any text, lighting, camera angles, or sound elements. If evident, identify and describe the emotional or sentimental tone (e.g., joy, sadness, enthusiasm) based on clear cues like facial expressions, voice tone, or music, without assumptions. For neutral content, such as stock or demonstration videos, note the absence of emotional tone. Provide a precise, comprehensive description to fully represent the video." }
+      ];
+
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: contents,
+        config: {
+          maxOutputTokens: 2048,
+          temperature: 0.85
+        }
+      });
+
+      return { content: response.text };
+
     } catch (error) {
       console.error("Error al procesar video:", error);
       return {
@@ -232,21 +183,31 @@ class GeminiService {
     }
   }
 
-  /**
-   * Procesa sticker con Gemini
-   */
-  async processSticker(sticker) {
+  async processSticker(stickerPath) {
     try {
-      // Aquí se procesaría el sticker
-      // Por ahora simulamos el procesamiento
-      return {
-        processed: true,
-        description: "Descripción del sticker simulada",
-        sentiment: "positive",
-        confidence: 0.8
-      };
+      const base64ImageFile = fs.readFileSync(stickerPath, {encoding: "base64"});
+      const contents = [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: base64ImageFile,
+          },
+        },
+        { text: "Examine the sticker closely. Identify and describe the specific emotions, feelings, or allusions it conveys, such as affection, gratitude, joy, or affirmation. Focus solely on the intended emotional purpose, inferred from clear visual cues like expressions, symbols (e.g., hearts), or actions. Avoid describing the image's content or making assumptions beyond evident emotional intent. Provide a precise, concise analysis of the sticker's emotional message." },
+      ];
+
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: contents,
+        config: {
+          maxOutputTokens: 2048,
+          temperature: 1
+        }});
+
+      return { content: response.text };
+
     } catch (error) {
-      console.error("Error al procesar sticker:", error);
+      console.error("Error al procesar imagen:", error);
       return {
         processed: false,
         error: error.message
@@ -254,19 +215,22 @@ class GeminiService {
     }
   }
 
-  /**
-   * Procesa documento con Gemini
-   */
-  async processDocument(document, text) {
+  async processDocument(documentPath) {
     try {
-      // Aquí se procesaría el documento
-      // Por ahora simulamos el procesamiento
-      return {
-        processed: true,
-        summary: "Resumen del documento simulado",
-        documentType: document.mimetype,
-        confidence: 0.8
-      };
+
+      const contents = [
+        { text: "Examine the document meticulously. Extract and list all key factual information, technical specifications, data points, and specific details with precision. Summarize the content accurately, focusing solely on objective information. Exclude any interpretation, sentiment analysis, or assumptions. Ensure the summary is concise, technical, and faithful to the document's content." },
+        { inlineData: {mimeType: 'application/pdf', data: Buffer.from(fs.readFileSync(documentPath)).toString("base64")}}];
+
+      const response = await this.ai.models.generateContent({
+        model: this.model,
+        contents: contents,
+        config: {
+          maxOutputTokens: 2048,
+          temperature: 0.45
+        }});
+      
+      return { content: response.text };
     } catch (error) {
       console.error("Error al procesar documento:", error);
       return {
@@ -276,40 +240,68 @@ class GeminiService {
     }
   }
 
-  /**
-   * Genera respuesta final basada en los resultados
-   */
   async generateFinalResponse(processingStatus) {
-    // Verificar si todos los elementos han sido procesados
     const allProcessed = Object.keys(processingStatus)
       .filter(key => key.endsWith('Processed'))
       .every(key => processingStatus[key] === true);
 
-    // Si todo está procesado, generar respuesta consolidada
     if (allProcessed) {
       const results = processingStatus.results;
+      const message = processingStatus.message || null;
       
-      // Construir una respuesta coherente basada en los componentes procesados
-      const response = {
-        status: "success",
-        message: "Procesamiento completado",
-        processed: true,
-        results: {}
-      };
-
-      // Agregar solo los resultados de componentes que existían
-      Object.keys(results).forEach(component => {
-        if (results[component]) {
-          response.results[component] = results[component];
-        }
-      });
-
-      return response;
+      let contextPrompt = "This is the user's text message and the provided transcription of the audio, video, image, sticker, or document in text format. Respond directly and concisely, continuing the conversation by addressing the user's query or topic based on the transcription. Stay relevant, avoid misinterpretations, and do not add unrelated information.";
+      
+      if (message) {
+        contextPrompt += `\n\nUser's message: "${message}"`;
+      }
+      
+      if (results.image && results.image.content) {
+        contextPrompt += `\n\nImage content: ${results.image.content}`;
+      }
+      
+      if (results.audio && results.audio.content) {
+        contextPrompt += `\n\nAudio transcription: ${results.audio.content}`;
+      }
+      
+      if (results.video && results.video.content) {
+        contextPrompt += `\n\nVideo description: ${results.video.content}`;
+      }
+      
+      if (results.sticker && results.sticker.content) {
+        contextPrompt += `\n\nSticker description: ${results.sticker.content}`;
+      }
+      
+      if (results.document && results.document.content) {
+        contextPrompt += `\n\nDocument summary: ${results.document.content}`;
+      }
+      
+      const contents = [{ text: contextPrompt }];
+      
+      try {
+        const response = await this.ai.models.generateContent({
+          model: this.model,
+          contents: contents,
+          config: {
+            maxOutputTokens: 2048,
+            temperature: 0.7,
+            systemInstruction: "You are a conversational assistant. Receive the user's message in text/plain format and any provided transcriptions or descriptions of audio, video, image, sticker, or document in text format. Understand the context and intent of the user's message. Respond concisely and directly, continuing the conversation by addressing the user's query or topic based on the provided content. Stay relevant, accurate, and focused on the objective information or emotional intent conveyed in the transcriptions. Avoid misinterpretations, assumptions, or unrelated information."
+          }
+        });
+        
+        return { response: response.text };
+      } catch (error) {
+        console.error("Error al generar respuesta final:", error);
+        return {
+          status: "error",
+          message: "Error al generar respuesta final",
+          processed: true,
+          error: error.message,
+          chatId: chatId
+        };
+      }
     } else {
-      // Algunos componentes aún no se han procesado
       return {
         status: "processing",
-        message: "Procesamiento en curso",
         processed: false
       };
     }

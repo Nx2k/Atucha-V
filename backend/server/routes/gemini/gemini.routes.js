@@ -132,4 +132,4 @@ router.delete('/:accountId/key', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;
