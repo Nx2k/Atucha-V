@@ -3,6 +3,7 @@ import { NewMessage } from 'telegram/events/index.js';
 import { Api, TelegramClient } from 'telegram';
 import Database from '../../database/Database.js';
 import GeminiManager from '../../controllers/gemini/GeminiManager.js';
+import TelegramManager from '../../controllers/telegram/TelegramManager.js';
 import { existsSync, mkdirSync, writeFile, unlinkSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -129,17 +130,20 @@ class TelegramService {
       const messageData = { sessionId: this.sessionId, chatId, message: messageText, ...media };
       const cleanupMediaFiles = () => Object.values(media).filter(Boolean).forEach(file => { try { if (existsSync(file)) unlinkSync(file); } catch {} });
 
-      const sessionData = await Database.getSession(this.sessionId, 'telegram');
-      if (sessionData?.accountId) {
-        try {
-          const geminiResponse = await GeminiManager.processMessage(sessionData.accountId, messageData);
+      try {
+        // Obtener accountId usando TelegramManager
+        const accountId = await TelegramManager.getSessionAccountId(this.sessionId);
+        if (accountId) {
+          const geminiResponse = await GeminiManager.processMessage(accountId, messageData);
           cleanupMediaFiles();
           if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
             await this.sendMessage(chatId, geminiResponse.results.text.content);
           }
-        } catch {
+        } else {
           cleanupMediaFiles();
         }
+      } catch {
+        cleanupMediaFiles();
       }
     }, new NewMessage({}));
   }

@@ -6,6 +6,7 @@ import qrcode from 'qrcode-terminal';
 import crypto from 'crypto';
 import Database from '../../database/Database.js';
 import GeminiManager from '../../controllers/gemini/GeminiManager.js';
+import WhatsAppManager from '../../controllers/whatsapp/WhatsappManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,6 +119,12 @@ class WhatsAppService {
         if (!message) continue;
 
         const chatId = msg.key.remoteJid;
+        
+        // Filtrar mensajes de grupos (los IDs de grupos terminan en @g.us)
+        if (chatId.endsWith('@g.us')) {
+          continue; // Ignorar mensajes de grupos
+        }
+        
         const messageText = message.conversation ||
           message.extendedTextMessage?.text ||
           message.imageMessage?.caption ||
@@ -165,17 +172,20 @@ class WhatsAppService {
             try { if (existsSync(file)) unlinkSync(file); } catch {}
           });
 
-          const sessionData = await Database.getSession(this.sessionId, 'whatsapp');
-          if (sessionData?.accountId) {
-            try {
-              const geminiResponse = await GeminiManager.processMessage(sessionData.accountId, messageData);
+          try {
+            // Obtener accountId desde WhatsAppManager
+            const accountId = await WhatsAppManager.getSessionAccountId(this.sessionId);
+            if (accountId) {
+              const geminiResponse = await GeminiManager.processMessage(accountId, messageData);
               cleanupMediaFiles();
               if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
                 await this.sendMessage(chatId, geminiResponse.results.text.content);
               }
-            } catch {
+            } else {
               cleanupMediaFiles();
             }
+          } catch {
+            cleanupMediaFiles();
           }
         }
       }
@@ -184,6 +194,11 @@ class WhatsAppService {
 
   async sendMessage(chatId, message) {
     if (!this.isInitialized) throw new Error(`Sesión ${this.sessionId} no inicializada`);
+
+    // No enviar mensajes a grupos
+    if (chatId.endsWith('@g.us')) {
+      return { success: false, error: 'No se permiten mensajes a grupos' };
+    }
 
     const formattedPhone = chatId.includes('@') ? chatId : `${chatId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
     const randomDelay = 5000 + Math.floor(Math.random() * 5001);

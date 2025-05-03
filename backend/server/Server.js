@@ -10,12 +10,10 @@ import express from 'express';
 const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
 
-// Montar las rutas
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/gemini', geminiRoutes);
 
-// Ruta para crear cuentas
 app.post('/api/dev/create-account', async (req, res) => {
   try {
     const result = await Database.createAccount();
@@ -31,6 +29,6 @@ app.post('/api/dev/create-account', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log(`Servidor escuchando en el puerto 3000`);
+app.listen(2511, () => {
+  console.log(`Servidor escuchando en el puerto 2511`);
 });

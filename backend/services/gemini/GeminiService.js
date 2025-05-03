@@ -8,7 +8,7 @@ class GeminiService {
     this.model = 'gemini-2.5-flash-preview-04-17';
   }
 
-  async processMessage({ message, image, audio, video, sticker, document }) {
+  async processMessage({ message, image, audio, video, sticker, document, contextPrompt }) {
     const status = { results: {}, message: message || null };
     const mediaTypes = { image, audio, video, sticker, document };
     const promises = Object.entries(mediaTypes)
@@ -17,7 +17,7 @@ class GeminiService {
         .then(result => status.results[type] = result));
 
     await Promise.all(promises);
-    return this.generateFinalResponse(status);
+    return this.generateFinalResponse(status, contextPrompt);
   }
 
   async processImage(imagePath) {
@@ -40,7 +40,7 @@ class GeminiService {
 
   async processAudio(audioPath) {
     const contents = [
-      { text: 'Listen to the audio carefully. Transcribe every word exactly as spoken, including tone, pauses, and any background sounds. Describe the speaker’s accent, speed, and emotional tone. Note any unclear parts and timestamp them. Provide a precise, detailed summary of the content without adding interpretations.' },
+      { text: "Listen to the audio carefully. Transcribe every word exactly as spoken, including tone, pauses, and any background sounds. Describe the speaker's accent, speed, and emotional tone. Note any unclear parts and timestamp them. Provide a precise, detailed summary of the content without adding interpretations." },
       { inlineData: { mimeType: 'audio/mp3', data: readFileSync(audioPath, 'base64') } }
     ];
 
@@ -77,7 +77,7 @@ class GeminiService {
   async processSticker(stickerPath) {
     const contents = [
       { inlineData: { mimeType: 'image/jpeg', data: readFileSync(stickerPath, 'base64') } },
-      { text: 'Examine the sticker closely. Identify and describe the specific emotions, feelings, or allusions it conveys, such as affection, gratitude, joy, or affirmation. Focus solely on the intended emotional purpose, inferred from clear visual cues like expressions, symbols (e.g., hearts), or actions. Avoid describing the image’s content or making assumptions beyond evident emotional intent. Provide a precise, concise analysis of the sticker’s emotional message.' }
+      { text: "Examine the sticker closely. Identify and describe the specific emotions, feelings, or allusions it conveys, such as affection, gratitude, joy, or affirmation. Focus solely on the intended emotional purpose, inferred from clear visual cues like expressions, symbols (e.g., hearts), or actions. Avoid describing the image's content or making assumptions beyond evident emotional intent. Provide a precise, concise analysis of the sticker's emotional message." }
     ];
 
     try {
@@ -94,7 +94,7 @@ class GeminiService {
 
   async processDocument(documentPath) {
     const contents = [
-      { text: 'Examine the document meticulously. Extract and list all key factual information, technical specifications, data points, and specific details with precision. Summarize the content accurately, focusing solely on objective information. Exclude any interpretation, sentiment analysis, or assumptions. Ensure the summary is concise, technical, and faithful to the document’s content.' },
+      { text: "Examine the document meticulously. Extract and list all key factual information, technical specifications, data points, and specific details with precision. Summarize the content accurately, focusing solely on objective information. Exclude any interpretation, sentiment analysis, or assumptions. Ensure the summary is concise, technical, and faithful to the document's content." },
       { inlineData: { mimeType: 'application/pdf', data: readFileSync(documentPath).toString('base64') } }
     ];
 
@@ -110,9 +110,10 @@ class GeminiService {
     }
   }
 
-  async generateFinalResponse({ results, message }) {
-    const contextPrompt = [
-      'This is the user’s text message and the provided transcription of the audio, video, image, sticker, or document in text format. Respond directly and concisely, continuing the conversation by addressing the user’s query or topic based on the transcription. Stay relevant, avoid misinterpretations, and do not add unrelated information.',
+  async generateFinalResponse({ results, message }, contextPrompt = '') {
+    const contextParts = [
+      "This is the user's text message and the provided transcription of the audio, video, image, sticker, or document in text format. Respond directly and concisely, continuing the conversation by addressing the user's query or topic based on the transcription. Stay relevant, avoid misinterpretations, and do not add unrelated information.",
+      contextPrompt ? `\n\nConversation history:\n${contextPrompt}` : '',
       message ? `\n\nUser's message: "${message}"` : '',
       ...Object.entries(results).map(([type, { content }]) => content ? `\n\n${type.charAt(0).toUpperCase() + type.slice(1)} ${type === 'audio' ? 'transcription' : type === 'document' ? 'summary' : 'description'}: ${content}` : '')
     ].filter(Boolean).join('');
@@ -120,11 +121,11 @@ class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: this.model,
-        contents: [{ text: contextPrompt }],
+        contents: [{ text: contextParts }],
         config: {
           maxOutputTokens: 2048,
           temperature: 0.9,
-          systemInstruction: 'You are a conversational assistant. Receive the user’s message in text/plain format and any provided transcriptions or descriptions of audio, video, image, sticker, or document in text format. Understand the context and intent of the user’s message. Respond concisely and directly, continuing the conversation by addressing the user’s query or topic based on the provided content. Stay relevant, accurate, and focused on the objective information or emotional intent conveyed in the transcriptions. Avoid misinterpretations, assumptions, or unrelated information.'
+          systemInstruction: "You are a conversational assistant. Receive the user's message in text/plain format and any provided transcriptions or descriptions of audio, video, image, sticker, or document in text format. If available, consider the conversation history to maintain context. Understand the context and intent of the user's message. Respond concisely and directly, continuing the conversation by addressing the user's query or topic based on the provided content. Stay relevant, accurate, and focused on the objective information or emotional intent conveyed in the transcriptions. Avoid misinterpretations, assumptions, or unrelated information."
         }
       });
       return { status: 'success', response: response.text, results: { text: { content: response.text } } };

@@ -17,14 +17,34 @@ class WhatsAppManager {
     const service = new WhatsAppService(sessionId, authMethod, phoneNumber);
     const result = await service.initialize();
     await Database.saveSession(sessionId, service.getSessionPath(), '', '', phoneNumber, 'whatsapp', authMethod, accountId);
-    this.sessions.set(sessionId, service);
+    this.sessions.set(sessionId, { service, accountId });
     return { success: true, sessionId, authMethod, ...result };
   }
 
   getSession(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (!session) throw new Error(`No existe sesión con el ID: ${sessionId}`);
-    return session;
+    const sessionObj = this.sessions.get(sessionId);
+    if (!sessionObj) throw new Error(`No existe sesión con el ID: ${sessionId}`);
+    return sessionObj;
+  }
+
+  async getSessionAccountId(sessionId) {
+    const sessionObj = this.sessions.get(sessionId);
+    if (sessionObj?.accountId) return sessionObj.accountId;
+    
+    const accountId = await Database.getSessionAccountId(sessionId, 'whatsapp');
+    if (accountId) return accountId;
+    
+    const sessionData = await Database.getSession(sessionId, 'whatsapp');
+    if (sessionData?.accountId) {
+      await Database.setSessionAccountId(sessionId, 'whatsapp', sessionData.accountId);
+      if (this.sessions.has(sessionId)) {
+        const sessionObj = this.sessions.get(sessionId);
+        this.sessions.set(sessionId, { ...sessionObj, accountId: sessionData.accountId });
+      }
+      return sessionData.accountId;
+    }
+    
+    return null;
   }
 
   listSessions() {
@@ -39,22 +59,24 @@ class WhatsAppManager {
       if (sessionData?.sessionPath) {
         const service = new WhatsAppService(sessionData.sessionId, sessionData.authMethod, sessionData.phoneNumber);
         const result = await service.initialize().catch(() => null);
-        if (result?.success) this.sessions.set(sessionId, service);
+        if (result?.success) {
+          this.sessions.set(sessionId, { service, accountId: sessionData.accountId });
+        }
       }
     }
   }
 
   async deleteSession(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (!session) return { success: false, error: `No existe sesión con el ID: ${sessionId}` };
-    await session.logout();
+    const sessionObj = this.sessions.get(sessionId);
+    if (!sessionObj) return { success: false, error: `No existe sesión con el ID: ${sessionId}` };
+    await sessionObj.service.logout();
     await Database.deleteSession(sessionId, 'whatsapp');
     this.sessions.delete(sessionId);
     return { success: true };
   }
 
   async sendMessage(sessionId, phoneNumber, message) {
-    return (await this.getSession(sessionId)).sendMessage(phoneNumber, message);
+    return (await this.getSession(sessionId)).service.sendMessage(phoneNumber, message);
   }
 }
 

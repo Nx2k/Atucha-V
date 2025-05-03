@@ -31,7 +31,47 @@ class GeminiManager {
   }
 
   async processMessage(accountId, messageData) {
-    return (await this.getOrCreateInstance(accountId)).processMessage(messageData);
+    const { sessionId, chatId, platform = sessionId.includes('whatsapp') ? 'whatsapp' : 'telegram' } = messageData;
+    
+    // Obtener historial de chat
+    const chatHistory = await Database.getChatHistory(accountId, chatId, platform);
+    
+    // Crear contexto basado en el historial
+    let contextPrompt = '';
+    if (chatHistory && chatHistory.length > 0) {
+      contextPrompt = chatHistory
+        .reverse()   // Invertir para tener orden cronológico
+        .map(entry => {
+          // Incluir el contextPrompt original en la concatenación del historial
+          let entryContext = '';
+          if (entry.contextPrompt) {
+            entryContext = `Contexto anterior: ${entry.contextPrompt}\n`;
+          }
+          return `${entryContext}Usuario: ${entry.userMessage || ''}\nAsistente: ${entry.geminiResponse || ''}\n`;
+        })
+        .join('\n');
+    }
+    
+    // Adjuntar contextPrompt al messageData
+    const messageWithContext = {
+      ...messageData,
+      contextPrompt
+    };
+    
+    // Procesar mensaje con el servicio de Gemini
+    const geminiInstance = await this.getOrCreateInstance(accountId);
+    const response = await geminiInstance.processMessage(messageWithContext);
+    
+    // Guardar mensaje y respuesta en el historial
+    if (response.status === 'success' && response.results.text) {
+      await Database.saveChatMessage(accountId, chatId, platform, {
+        message: messageData.message,
+        geminiResponse: response.results.text.content,
+        contextPrompt: messageWithContext.contextPrompt
+      });
+    }
+    
+    return response;
   }
 
   async updateApiKey(accountId, apiKey) {

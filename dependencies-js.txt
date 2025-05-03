@@ -5,3 +5,4 @@ telegram
 express
 sqlite3
 qrcode-terminal
+ioredis

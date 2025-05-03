@@ -1,9 +1,13 @@
 import sqlite3 from 'sqlite3';
 import crypto from 'crypto';
+import Redis from 'ioredis';
 
 const db = new sqlite3.Database('../database/sessions.db', err => {
   if (err) process.exit(1);
 });
+
+// Inicializar conexión Redis
+const redis = new Redis();
 
 const initializeDatabase = () => new Promise((resolve, reject) => {
   db.serialize(() => {
@@ -85,6 +89,9 @@ const Database = {
     await new Promise((resolve, reject) => {
       db.run(query, params, err => err ? reject(err) : resolve());
     });
+    
+    // Guardar el mapeo de sessionId a accountId en Redis
+    await this.setSessionAccountId(sessionId, platform, accountId);
   },
 
   async getSession(sessionId, platform = 'telegram') {
@@ -106,6 +113,9 @@ const Database = {
     await new Promise((resolve, reject) => {
       db.run(`DELETE FROM ${table} WHERE sessionId = ?`, [sessionId], err => err ? reject(err) : resolve());
     });
+    
+    // Eliminar el mapeo de sessionId a accountId en Redis
+    await redis.del(`session:account:${sessionId}:${platform}`);
   },
 
   async saveGeminiKey(accountId, apiKey) {
@@ -124,6 +134,39 @@ const Database = {
     await new Promise((resolve, reject) => {
       db.run(`DELETE FROM gemini_keys WHERE accountId = ?`, [accountId], err => err ? reject(err) : resolve());
     });
+  },
+
+  // Métodos para Redis - Gestión de mapeo sessionId -> accountId
+  async getSessionAccountId(sessionId, platform) {
+    return redis.get(`session:account:${sessionId}:${platform}`);
+  },
+
+  async setSessionAccountId(sessionId, platform, accountId) {
+    return redis.set(`session:account:${sessionId}:${platform}`, accountId);
+  },
+
+  // Métodos para el historial de chat
+  async getChatHistory(accountId, chatId, platform) {
+    const historyKey = `chat:historial:${accountId}:${chatId}:${platform}`;
+    const history = await redis.lrange(historyKey, 0, -1);
+    return history.map(item => JSON.parse(item));
+  },
+
+  async saveChatMessage(accountId, chatId, platform, messageData) {
+    const historyKey = `chat:historial:${accountId}:${chatId}:${platform}`;
+    await redis.lpush(historyKey, JSON.stringify({
+      userMessage: messageData.message,
+      geminiResponse: messageData.geminiResponse,
+      contextPrompt: messageData.contextPrompt,
+      timestamp: new Date().toISOString()
+    }));
+    // Establecer TTL de 4 horas (14400 segundos)
+    await redis.expire(historyKey, 14400);
+  },
+
+  async deleteChatHistory(accountId, chatId, platform) {
+    const historyKey = `chat:historial:${accountId}:${chatId}:${platform}`;
+    return redis.del(historyKey);
   }
 };
 

@@ -15,25 +15,45 @@ class TelegramManager {
     const service = new TelegramService(sessionId, apiId, apiHash, phoneNumber);
     const result = await service.initialize();
     await Database.saveSession(sessionId, service.getSessionString(), apiId, apiHash, phoneNumber, 'telegram', '', accountId);
-    this.sessions.set(sessionId, service);
+    this.sessions.set(sessionId, { service, accountId });
     return { success: true, requiresPhoneCode: true, sessionId, result };
   }
 
   async verifySession(sessionId, phoneCode) {
-    const session = this.getSession(sessionId);
-    const result = await session.verifyPhoneCode(phoneCode);
-    await session.getChats();
+    const sessionObj = this.getSession(sessionId);
+    const result = await sessionObj.service.verifyPhoneCode(phoneCode);
+    await sessionObj.service.getChats();
     return { success: true, sessionId, result };
   }
 
   getSession(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (!session) throw new Error(`No existe sesión con el ID: ${sessionId}`);
-    return session;
+    const sessionObj = this.sessions.get(sessionId);
+    if (!sessionObj) throw new Error(`No existe sesión con el ID: ${sessionId}`);
+    return sessionObj;
+  }
+
+  async getSessionAccountId(sessionId) {
+    const sessionObj = this.sessions.get(sessionId);
+    if (sessionObj?.accountId) return sessionObj.accountId;
+    
+    const accountId = await Database.getSessionAccountId(sessionId, 'telegram');
+    if (accountId) return accountId;
+    
+    const sessionData = await Database.getSession(sessionId, 'telegram');
+    if (sessionData?.accountId) {
+      await Database.setSessionAccountId(sessionId, 'telegram', sessionData.accountId);
+      if (this.sessions.has(sessionId)) {
+        const sessionObj = this.sessions.get(sessionId);
+        this.sessions.set(sessionId, { ...sessionObj, accountId: sessionData.accountId });
+      }
+      return sessionData.accountId;
+    }
+    
+    return null;
   }
 
   getSessionString(sessionId) {
-    return this.getSession(sessionId).getSessionString();
+    return this.getSession(sessionId).service.getSessionString();
   }
 
   listSessions() {
@@ -48,24 +68,26 @@ class TelegramManager {
       if (sessionData) {
         const service = new TelegramService(sessionData.sessionId, sessionData.apiId, sessionData.apiHash, sessionData.phoneNumber);
         const result = await service.initialize().catch(() => null);
-        if (result?.success && !result.requiresPhoneCode) this.sessions.set(sessionId, service);
+        if (result?.success && !result.requiresPhoneCode) {
+          this.sessions.set(sessionId, { service, accountId: sessionData.accountId });
+        }
       }
     }
   }
 
   async deleteSession(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (!session) return { success: false, error: `No existe sesión con el ID: ${sessionId}` };
-    await session.client.connect();
-    await session.logout();
+    const sessionObj = this.sessions.get(sessionId);
+    if (!sessionObj) return { success: false, error: `No existe sesión con el ID: ${sessionId}` };
+    await sessionObj.service.client.connect();
+    await sessionObj.service.logout();
     await Database.deleteSession(sessionId, 'telegram');
-    await session.client.destroy();
+    await sessionObj.service.client.destroy();
     this.sessions.delete(sessionId);
     return { success: true };
   }
 
   async sendMessage(sessionId, chatId, message) {
-    return (await this.getSession(sessionId)).sendMessage(chatId, message);
+    return (await this.getSession(sessionId)).service.sendMessage(chatId, message);
   }
 }
 
