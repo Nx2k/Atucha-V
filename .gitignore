@@ -2,12 +2,15 @@ node_modules/*
 node_modules/
 node_modules
 
-sessions/*
-sessions/
-sessions
+WhatsappSessions/*
+WhatsappSessions/
+WhatsappSessions
 
-.env
+media/*
+media/
+media
 
 *.db
-
+.env
 apikey.txt
+
