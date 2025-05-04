@@ -4,9 +4,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import qrcode from 'qrcode-terminal';
 import crypto from 'crypto';
-import Database from '../../database/Database.js';
+import Database from '../database/Database.js';
 import GeminiManager from '../../controllers/gemini/GeminiManager.js';
-import WhatsAppManager from '../../controllers/whatsapp/WhatsappManager.js';
+import WhatsAppManager from '../../controllers/whatsapp/whatsapp.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

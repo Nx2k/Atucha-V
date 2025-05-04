@@ -1,5 +1,5 @@
-import { GeminiService } from '../../services/gemini/GeminiService.js';
-import Database from '../../database/Database.js';
+import { GeminiService } from '../services/GeminiService.js';
+import Database from '../database/Database.js';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -1,8 +1,8 @@
-import TelegramManager from '../controllers/telegram/TelegramManager.js';
-import WhatsAppManager from '../controllers/whatsapp/WhatsappManager.js';
-import telegramRoutes from './routes/telegram/telegram.routes.js';
-import whatsappRoutes from './routes/whatsapp/whatsapp.routes.js';
-import geminiRoutes from './routes/gemini/gemini.routes.js';
+import TelegramManager from '../controllers/telegram.controller.js';
+import WhatsAppManager from '../controllers/whatsapp.controller.js';
+import telegramRoutes from './routes/telegram.routes.js';
+import whatsappRoutes from './routes/whatsapp.routes.js';
+import geminiRoutes from './routes/gemini.routes.js';
 import Database from '../database/Database.js';
 import bodyParser from 'body-parser';
 import express from 'express';
@@ -29,6 +29,6 @@ app.post('/api/dev/create-account', async (req, res) => {
   }
 });
 
-app.listen(2511, () => {
-  console.log(`Servidor escuchando en el puerto 2511`);
+app.listen(3000, () => {
+  console.log(`Servidor escuchando en el puerto 3000`);
 });

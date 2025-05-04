@@ -1,4 +1,4 @@
-import WhatsAppManager from '../../../controllers/whatsapp/WhatsappManager.js';
+import WhatsAppManager from '../../controllers/whatsapp.controller.js';
 import express from 'express';
 
 const router = express.Router();

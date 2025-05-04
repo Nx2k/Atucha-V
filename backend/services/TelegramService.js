@@ -1,9 +1,9 @@
 import { StringSession } from 'telegram/sessions/index.js';
 import { NewMessage } from 'telegram/events/index.js';
 import { Api, TelegramClient } from 'telegram';
-import Database from '../../database/Database.js';
-import GeminiManager from '../../controllers/gemini/GeminiManager.js';
-import TelegramManager from '../../controllers/telegram/TelegramManager.js';
+import Database from '../database/Database.js';
+import GeminiManager from '../controllers/gemini.controller.js';
+import TelegramManager from '../controllers/telegram.controller.js';
 import { existsSync, mkdirSync, writeFile, unlinkSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

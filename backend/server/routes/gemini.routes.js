@@ -1,6 +1,6 @@
 import express from 'express';
-import GeminiManager from '../../../controllers/gemini/GeminiManager.js';
-import Database from '../../../database/Database.js';
+import GeminiManager from '../../controllers/gemini.controller.js';
+import Database from '../../database/Database.js';
 
 const router = express.Router();
 
