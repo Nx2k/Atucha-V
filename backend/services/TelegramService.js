@@ -4,6 +4,7 @@ import { Api, TelegramClient } from 'telegram';
 import Database from '../database/Database.js';
 import GeminiManager from '../controllers/gemini.controller.js';
 import TelegramManager from '../controllers/telegram.controller.js';
+import MessagePackager from '../modules/MessagePackager.js';
 import { existsSync, mkdirSync, writeFile, unlinkSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -134,15 +135,35 @@ class TelegramService {
         // Obtener accountId usando TelegramManager
         const accountId = await TelegramManager.getSessionAccountId(this.sessionId);
         if (accountId) {
-          const geminiResponse = await GeminiManager.processMessage(accountId, messageData);
-          cleanupMediaFiles();
-          if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
-            await this.sendMessage(chatId, geminiResponse.results.text.content);
+          const packagedMessage = await MessagePackager.packageMessage(accountId, chatId, 'telegram', messageData);
+          if (packagedMessage.texts.length > 0 || packagedMessage.images.length > 0 || packagedMessage.audios.length > 0 ||
+              packagedMessage.videos.length > 0 || packagedMessage.stickers.length > 0 || packagedMessage.documents.length > 0) {
+            const geminiResponse = await GeminiManager.processMessage(accountId, packagedMessage);
+            // Limpiar archivos multimedia originales
+            cleanupMediaFiles();
+            // Limpiar archivos multimedia empaquetados
+            Object.entries({
+              images: packagedMessage.images,
+              audios: packagedMessage.audios,
+              videos: packagedMessage.videos,
+              stickers: packagedMessage.stickers,
+              documents: packagedMessage.documents
+            }).forEach(([_, paths]) => 
+              paths.forEach(file => {
+                try { if (existsSync(file)) unlinkSync(file); } catch {}
+              })
+            );
+            
+            if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
+              await this.sendMessage(chatId, geminiResponse.results.text.content);
+            }
+          } else {
+            cleanupMediaFiles();
           }
         } else {
           cleanupMediaFiles();
         }
-      } catch {
+      } catch (error) {
         cleanupMediaFiles();
       }
     }, new NewMessage({}));

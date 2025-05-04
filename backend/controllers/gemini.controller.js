@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const defaultApiKeyPath = path.join(__dirname, '../../../apikey.txt');
+const defaultApiKeyPath = path.join(__dirname, '../../apikey.txt');
 const DEFAULT_API_KEY = existsSync(defaultApiKeyPath) ? readFileSync(defaultApiKeyPath, 'utf-8').trim() : '';
 
 class GeminiManager {
@@ -40,14 +40,16 @@ class GeminiManager {
     let contextPrompt = '';
     if (chatHistory && chatHistory.length > 0) {
       contextPrompt = chatHistory
-        .reverse()   // Invertir para tener orden cronológico
+        .reverse()
         .map(entry => {
-          // Incluir el contextPrompt original en la concatenación del historial
           let entryContext = '';
           if (entry.contextPrompt) {
             entryContext = `Contexto anterior: ${entry.contextPrompt}\n`;
           }
-          return `${entryContext}Usuario: ${entry.userMessage || ''}\nAsistente: ${entry.geminiResponse || ''}\n`;
+          const userMessages = entry.userMessages?.length > 0 
+            ? `Usuario: ${entry.userMessages.join('\n')}`
+            : `Usuario: ${entry.userMessage || ''}`;
+          return `${entryContext}${userMessages}\nAsistente: ${entry.geminiResponse || ''}\n`;
         })
         .join('\n');
     }
@@ -65,7 +67,12 @@ class GeminiManager {
     // Guardar mensaje y respuesta en el historial
     if (response.status === 'success' && response.results.text) {
       await Database.saveChatMessage(accountId, chatId, platform, {
-        message: messageData.message,
+        messages: messageData.texts || [],
+        images: messageData.images || [],
+        audios: messageData.audios || [],
+        videos: messageData.videos || [],
+        stickers: messageData.stickers || [],
+        documents: messageData.documents || [],
         geminiResponse: response.results.text.content,
         contextPrompt: messageWithContext.contextPrompt
       });

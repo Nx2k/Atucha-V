@@ -1,5 +1,3 @@
-import TelegramManager from '../controllers/telegram.controller.js';
-import WhatsAppManager from '../controllers/whatsapp.controller.js';
 import telegramRoutes from './routes/telegram.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import geminiRoutes from './routes/gemini.routes.js';

@@ -8,15 +8,22 @@ class GeminiService {
     this.model = 'gemini-2.5-flash-preview-04-17';
   }
 
-  async processMessage({ message, image, audio, video, sticker, document, contextPrompt }) {
-    const status = { results: {}, message: message || null };
-    const mediaTypes = { image, audio, video, sticker, document };
-    const promises = Object.entries(mediaTypes)
-      .filter(([_, path]) => path)
-      .map(([type, path]) => this[`process${type.charAt(0).toUpperCase() + type.slice(1)}`](path)
-        .then(result => status.results[type] = result));
+  async processMessage({ texts = [], images = [], audios = [], videos = [], stickers = [], documents = [], contextPrompt }) {
+    const status = { results: {}, messages: texts };
+    const mediaTypes = { image: images, audio: audios, video: videos, sticker: stickers, document: documents };
 
-    await Promise.all(promises);
+    const promises = Object.entries(mediaTypes)
+      .flatMap(([type, paths]) => 
+        paths.map(path => this[`process${type.charAt(0).toUpperCase() + type.slice(1)}`](path)
+          .then(result => ({ type, result })))
+      );
+
+    const results = await Promise.all(promises);
+    results.forEach(({ type, result }) => {
+      if (!status.results[type]) status.results[type] = [];
+      status.results[type].push(result);
+    });
+
     return this.generateFinalResponse(status, contextPrompt);
   }
 
@@ -110,27 +117,52 @@ class GeminiService {
     }
   }
 
-  async generateFinalResponse({ results, message }, contextPrompt = '') {
+  async generateFinalResponse({ results, messages }, contextPrompt = '') {
     const contextParts = [
-      "This is the user's text message and the provided transcription of the audio, video, image, sticker, or document in text format. Respond directly and concisely, continuing the conversation by addressing the user's query or topic based on the transcription. Stay relevant, avoid misinterpretations, and do not add unrelated information.",
+      "This is the user's text messages and the provided transcriptions of the audio, video, images, stickers, or documents in text format. Respond directly and concisely, continuing the conversation by addressing the user's query or topic based on the transcriptions. Stay relevant, avoid misinterpretations, and do not add unrelated information.",
       contextPrompt ? `\n\nConversation history:\n${contextPrompt}` : '',
-      message ? `\n\nUser's message: "${message}"` : '',
-      ...Object.entries(results).map(([type, { content }]) => content ? `\n\n${type.charAt(0).toUpperCase() + type.slice(1)} ${type === 'audio' ? 'transcription' : type === 'document' ? 'summary' : 'description'}: ${content}` : '')
+      messages.length > 0 ? `\n\nUser's messages:\n${messages.map((msg, i) => `${i + 1}. ${msg}`).join('\n')}` : '',
+      ...Object.entries(results).flatMap(([type, items]) => 
+        items.map((item, i) => item.content ? `\n\n${type.charAt(0).toUpperCase() + type.slice(1)} ${i + 1} ${type === 'audio' ? 'transcription' : type === 'document' ? 'summary' : 'description'}: ${item.content}` : '')
+      )
     ].filter(Boolean).join('');
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: this.model,
-        contents: [{ text: contextParts }],
-        config: {
-          maxOutputTokens: 2048,
-          temperature: 0.9,
-          systemInstruction: "You are a conversational assistant. Receive the user's message in text/plain format and any provided transcriptions or descriptions of audio, video, image, sticker, or document in text format. If available, consider the conversation history to maintain context. Understand the context and intent of the user's message. Respond concisely and directly, continuing the conversation by addressing the user's query or topic based on the provided content. Stay relevant, accurate, and focused on the objective information or emotional intent conveyed in the transcriptions. Avoid misinterpretations, assumptions, or unrelated information."
-        }
-      });
+      let response;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      do {
+        response = await this.ai.models.generateContent({
+          model: this.model,
+          contents: [{ text: contextParts }],
+          config: {
+            maxOutputTokens: 2048,
+            temperature: 0.9 + (attempts * 0.01), // Pequeño aumento de temperatura en cada intento
+            systemInstruction: "You are a conversational assistant. Receive the user's messages in text/plain format and any provided transcriptions or descriptions of audio, video, images, stickers, or documents in text format. If available, consider the conversation history to maintain context. Understand the context and intent of the user's messages. Respond concisely and directly, continuing the conversation by addressing the user's query or topic based on the provided content. Stay relevant, accurate, and focused on the objective information or emotional intent conveyed in the transcriptions. Avoid misinterpretations, assumptions, or unrelated information."
+          }
+        });
+        
+        attempts++;
+      } while ((!response.text || response.text.trim() === '') && attempts < maxAttempts);
+      
+      if (!response.text || response.text.trim() === '') {
+        return { 
+          status: 'error', 
+          message: 'No se pudo generar una respuesta después de varios intentos', 
+          processed: true, 
+          error: 'Respuesta vacía después de múltiples intentos' 
+        };
+      }
+      
       return { status: 'success', response: response.text, results: { text: { content: response.text } } };
-    } catch {
-      return { status: 'error', message: 'Error al generar respuesta final', processed: true, error: 'Error al generar respuesta final' };
+    } catch (error) {
+      return { 
+        status: 'error', 
+        message: 'Error al generar respuesta final', 
+        processed: true, 
+        error: error.message || 'Error al generar respuesta final' 
+      };
     }
   }
 }

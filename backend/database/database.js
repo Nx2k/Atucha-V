@@ -155,7 +155,12 @@ const Database = {
   async saveChatMessage(accountId, chatId, platform, messageData) {
     const historyKey = `chat:historial:${accountId}:${chatId}:${platform}`;
     await redis.lpush(historyKey, JSON.stringify({
-      userMessage: messageData.message,
+      userMessages: messageData.messages,
+      images: messageData.images,
+      audios: messageData.audios,
+      videos: messageData.videos,
+      stickers: messageData.stickers,
+      documents: messageData.documents,
       geminiResponse: messageData.geminiResponse,
       contextPrompt: messageData.contextPrompt,
       timestamp: new Date().toISOString()

@@ -5,13 +5,14 @@ import { fileURLToPath } from 'url';
 import qrcode from 'qrcode-terminal';
 import crypto from 'crypto';
 import Database from '../database/Database.js';
-import GeminiManager from '../../controllers/gemini/GeminiManager.js';
-import WhatsAppManager from '../../controllers/whatsapp/whatsapp.controller.js';
+import GeminiManager from '../controllers/gemini.controller.js';
+import WhatsAppManager from '../controllers/whatsapp.controller.js';
+import MessagePackager from '../modules/MessagePackager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const sessionPath = path.join(__dirname, '../../database/WhatsappSessions');
-const mediaDir = path.join(__dirname, '../../database/media');
+const sessionPath = path.join(__dirname, '../database/WhatsappSessions');
+const mediaDir = path.join(__dirname, '../database/media');
 
 const logger = {
   child: () => logger,
@@ -176,15 +177,35 @@ class WhatsAppService {
             // Obtener accountId desde WhatsAppManager
             const accountId = await WhatsAppManager.getSessionAccountId(this.sessionId);
             if (accountId) {
-              const geminiResponse = await GeminiManager.processMessage(accountId, messageData);
-              cleanupMediaFiles();
-              if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
-                await this.sendMessage(chatId, geminiResponse.results.text.content);
+              const packagedMessage = await MessagePackager.packageMessage(accountId, chatId, 'whatsapp', messageData);
+              if (packagedMessage.texts.length > 0 || packagedMessage.images.length > 0 || packagedMessage.audios.length > 0 ||
+                  packagedMessage.videos.length > 0 || packagedMessage.stickers.length > 0 || packagedMessage.documents.length > 0) {
+                const geminiResponse = await GeminiManager.processMessage(accountId, packagedMessage);
+                // Limpiar archivos multimedia originales
+                cleanupMediaFiles();
+                // Limpiar archivos multimedia empaquetados
+                Object.entries({
+                  images: packagedMessage.images,
+                  audios: packagedMessage.audios,
+                  videos: packagedMessage.videos,
+                  stickers: packagedMessage.stickers,
+                  documents: packagedMessage.documents
+                }).forEach(([_, paths]) => 
+                  paths.forEach(file => {
+                    try { if (existsSync(file)) unlinkSync(file); } catch {}
+                  })
+                );
+                
+                if (geminiResponse?.status === 'success' && geminiResponse.results.text) {
+                  await this.sendMessage(chatId, geminiResponse.results.text.content);
+                }
+              } else {
+                cleanupMediaFiles();
               }
             } else {
               cleanupMediaFiles();
             }
-          } catch {
+          } catch (error) {
             cleanupMediaFiles();
           }
         }
